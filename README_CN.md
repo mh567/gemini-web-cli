@@ -108,6 +108,7 @@ gemini-web-cli history                      # 列出所有对话（CLI 模式）
 ```bash
 gemini-web-cli login                        # 登录（默认账户）
 gemini-web-cli login --account work         # 以指定名称登录
+gemini-web-cli login --isolated             # 强制使用隔离浏览器配置
 gemini-web-cli accounts list                # 列出所有账户
 gemini-web-cli accounts switch work         # 切换默认账户
 gemini-web-cli accounts remove work         # 删除账户
@@ -205,12 +206,13 @@ Gemini Web CLI 通过逆向 Gemini 网页接口实现与模型的交互：
 
 ### 1. 认证流程
 
-通过无头浏览器（go-rod）打开 Google 登录页面，用户完成登录后提取以下 Cookie：
+通过浏览器自动化（go-rod）打开 Google 登录页面，用户完成登录后提取以下 Cookie：
 - `__Secure-1PSID` — 主会话标识
 - `__Secure-1PSIDTS` — 会话时间戳（需定期轮换）
 - `__Secure-1PSIDCC` — 会话校验码
 
-Cookie 通过系统密钥链（macOS Keychain / Linux Secret Service）安全存储。
+默认优先复用本机浏览器登录态，若复用失败会自动回退到隔离浏览器配置。  
+Cookie 以加密文件形式存储在 `~/.config/gemini-web-cli/credentials/`（或 `XDG_CONFIG_HOME/gemini-web-cli/credentials/`）。
 
 ### 2. 会话初始化
 
@@ -279,8 +281,7 @@ Cookie 通过系统密钥链（macOS Keychain / Linux Secret Service）安全存
 | `charmbracelet/glamour` | 终端 Markdown 渲染 |
 | `charmbracelet/lipgloss` | 终端样式 |
 | `charmbracelet/bubbles` | TUI 组件（输入框、视口、加载动画） |
-| `go-rod/rod` | 无头浏览器（登录流程） |
-| `zalando/go-keyring` | 系统密钥链存储 |
+| `go-rod/rod` | 浏览器自动化（登录流程） |
 
 ## 许可证
 

@@ -11,12 +11,10 @@ import (
 	"path/filepath"
 
 	"github.com/harris/gemini-web-cli/internal/config"
-	"github.com/zalando/go-keyring"
 )
 
 const (
-	keyringService = "gemini-web-cli"
-	accountsFile   = "accounts.json"
+	accountsFile = "accounts.json"
 )
 
 // AccountCookies holds the cookies for a single account.
@@ -36,8 +34,7 @@ type AccountList struct {
 
 // Store manages secure cookie storage.
 type Store struct {
-	useKeyring bool
-	dir        string
+	dir string
 }
 
 // NewStore creates a new credential store.
@@ -46,19 +43,7 @@ func NewStore() (*Store, error) {
 	if err != nil {
 		return nil, err
 	}
-	s := &Store{dir: dir}
-	// Test if keyring is available
-	s.useKeyring = testKeyring()
-	return s, nil
-}
-
-func testKeyring() bool {
-	err := keyring.Set(keyringService, "__test__", "test")
-	if err != nil {
-		return false
-	}
-	_ = keyring.Delete(keyringService, "__test__")
-	return true
+	return &Store{dir: dir}, nil
 }
 
 // SaveCookies stores cookies for an account.
@@ -67,27 +52,14 @@ func (s *Store) SaveCookies(cookies *AccountCookies) error {
 	if err != nil {
 		return err
 	}
-	if s.useKeyring {
-		return keyring.Set(keyringService, cookies.Account, string(data))
-	}
 	return s.saveToFile(cookies.Account, data)
 }
 
 // LoadCookies retrieves cookies for an account.
 func (s *Store) LoadCookies(account string) (*AccountCookies, error) {
-	var data []byte
-	if s.useKeyring {
-		val, err := keyring.Get(keyringService, account)
-		if err != nil {
-			return nil, fmt.Errorf("account %q not found: %w", account, err)
-		}
-		data = []byte(val)
-	} else {
-		var err error
-		data, err = s.loadFromFile(account)
-		if err != nil {
-			return nil, err
-		}
+	data, err := s.loadFromFile(account)
+	if err != nil {
+		return nil, err
 	}
 	var cookies AccountCookies
 	if err := json.Unmarshal(data, &cookies); err != nil {
@@ -98,9 +70,6 @@ func (s *Store) LoadCookies(account string) (*AccountCookies, error) {
 
 // DeleteCookies removes cookies for an account.
 func (s *Store) DeleteCookies(account string) error {
-	if s.useKeyring {
-		return keyring.Delete(keyringService, account)
-	}
 	path := filepath.Join(s.dir, "credentials", account+".enc")
 	return os.Remove(path)
 }

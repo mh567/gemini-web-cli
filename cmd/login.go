@@ -9,6 +9,7 @@ import (
 )
 
 var loginAccount string
+var loginIsolated bool
 
 var loginCmd = &cobra.Command{
 	Use:   "login",
@@ -18,11 +19,12 @@ var loginCmd = &cobra.Command{
 
 func init() {
 	loginCmd.Flags().StringVar(&loginAccount, "account", "default", "Account name")
+	loginCmd.Flags().BoolVar(&loginIsolated, "isolated", false, "Use isolated browser profile instead of local profile")
 	rootCmd.AddCommand(loginCmd)
 }
 
 func runLogin(cmd *cobra.Command, args []string) error {
-	cookies, err := auth.BrowserLogin(loginAccount)
+	cookies, err := auth.BrowserLogin(loginAccount, loginIsolated)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Login failed: %v\n", err)
 		return err

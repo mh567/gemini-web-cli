@@ -108,6 +108,7 @@ In chat mode, `/history` opens an interactive browser:
 ```bash
 gemini-web-cli login                        # Log in (default account)
 gemini-web-cli login --account work         # Log in with named account
+gemini-web-cli login --isolated             # Force isolated browser profile
 gemini-web-cli accounts list                # List all accounts
 gemini-web-cli accounts switch work         # Switch default account
 gemini-web-cli accounts remove work         # Remove an account
@@ -192,12 +193,14 @@ gemini-web-cli/
 
 Gemini Web CLI reverse-engineers the Gemini web interface endpoints:
 
-1. **Authentication** — Uses browser cookies (`__Secure-1PSID`, `__Secure-1PSIDTS`, `__Secure-1PSIDCC`) extracted via headless browser login
+1. **Authentication** — Uses browser cookies (`__Secure-1PSID`, `__Secure-1PSIDTS`, `__Secure-1PSIDCC`) extracted via browser login flow (default: reuse local profile, fallback: isolated profile)
 2. **Session Init** — Fetches `gemini.google.com/app` to extract CSRF token (`SNlM0e`), request context (`cfb2h`), and session ID (`FdrFJe`)
 3. **Generation** — POSTs to the `StreamGenerate` endpoint with a 69-element request array, double-JSON encoded
 4. **Model Selection** — Sets the `x-goog-ext-525001261-jspb` header with model-specific hex hashes
 5. **Conversations & Gems** — Uses the `batchexecute` RPC endpoint with specific RPC IDs for CRUD operations
 6. **Cookie Refresh** — Background goroutine rotates `PSIDTS` every 9 minutes via Google's `RotateCookies` endpoint
+
+Credentials are stored as encrypted local files under `~/.config/gemini-web-cli/credentials/` (or `XDG_CONFIG_HOME/gemini-web-cli/credentials/`).
 
 ## Requirements
 

@@ -75,6 +75,7 @@ In-chat commands:
 - `/model <name>` — Switch model (or interactive picker)
 - `/upload <path> [question]` — Attach a file (optionally ask about it immediately)
 - `/history` — Browse conversation history (arrow keys to navigate, Enter to open, continue past conversations)
+- `/thoughts [on|off]` — Toggle thinking output visibility (collapsed by default)
 - `Enter` — Send message
 - `Double ESC` — Cancel generation in progress
 - `Ctrl+C` — Quit

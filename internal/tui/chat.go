@@ -70,26 +70,27 @@ type modelOption struct {
 
 // ChatModel is the bubbletea model for the chat view.
 type ChatModel struct {
-	client       *api.Client
-	session      *api.ChatSession
-	gemName      string // gem name to resolve after init
-	gemID        string
-	initializing bool
-	ready        bool // true after first WindowSizeMsg
-	input     textarea.Model
-	spinner   spinner.Model
-	renderer  *glamour.TermRenderer
-	width     int
-	waiting   bool
-	interrupted bool
-	streaming string
+	client            *api.Client
+	session           *api.ChatSession
+	gemName           string // gem name to resolve after init
+	gemID             string
+	initializing      bool
+	ready             bool // true after first WindowSizeMsg
+	showThoughts      bool // false by default: thoughts are collapsed
+	input             textarea.Model
+	spinner           spinner.Model
+	renderer          *glamour.TermRenderer
+	width             int
+	waiting           bool
+	interrupted       bool
+	streaming         string
 	streamingThoughts string
 	streamingImages   []api.ImageInfo
-	pendingPrints []string // queued lines to print via tea.Println
-	lastEscTime time.Time
-	pendingFiles []api.FileRef
-	selectingModel bool
-	modelOptions   []modelOption
+	pendingPrints     []string // queued lines to print via tea.Println
+	lastEscTime       time.Time
+	pendingFiles      []api.FileRef
+	selectingModel    bool
+	modelOptions      []modelOption
 	// History browsing state
 	historyState     historyMode
 	historyConvs     []api.Conversation
@@ -105,7 +106,7 @@ type ChatModel struct {
 // NewChatModel creates a new chat view model.
 func NewChatModel(client *api.Client, gemName string) ChatModel {
 	ta := textarea.New()
-	ta.Placeholder = "Type a message... (/upload, /model, /new, /history)"
+	ta.Placeholder = "Type a message... (/upload, /model, /new, /history, /thoughts)"
 	ta.Focus()
 	ta.CharLimit = 0
 	ta.SetHeight(3)
@@ -277,7 +278,7 @@ func (m ChatModel) View() string {
 		b.WriteString(m.spinner.View() + " Initializing session...\n")
 	} else if m.waiting {
 		if m.streamingThoughts != "" {
-			b.WriteString(mutedStyle.Render("Thinking: " + m.streamingThoughts))
+			b.WriteString(m.renderThoughts(m.streamingThoughts))
 			b.WriteString("\n")
 		}
 		if m.streaming != "" {
@@ -292,7 +293,7 @@ func (m ChatModel) View() string {
 
 	b.WriteString(m.input.View())
 	b.WriteString("\n")
-	b.WriteString(helpStyle.Render("Enter: send | Ctrl+C: quit | /new /model /upload /history"))
+	b.WriteString(helpStyle.Render("Enter: send | Ctrl+C: quit | /new /model /upload /history /thoughts"))
 
 	return b.String()
 }
@@ -432,8 +433,29 @@ func (m ChatModel) handleSlashCmd(text string) (tea.Model, tea.Cmd) {
 		m.historyCursor = 0
 		m.historyConvs = nil
 		return m, m.loadHistory()
+	case "/thoughts":
+		if len(parts) == 1 {
+			m.showThoughts = !m.showThoughts
+		} else {
+			switch strings.ToLower(parts[1]) {
+			case "on", "show", "expand", "expanded":
+				m.showThoughts = true
+			case "off", "hide", "collapse", "collapsed":
+				m.showThoughts = false
+			default:
+				m.addMsg(chatMsg{role: "system", text: "Usage: /thoughts [on|off]"})
+				return m, m.flushPrints()
+			}
+		}
+
+		state := "collapsed"
+		if m.showThoughts {
+			state = "expanded"
+		}
+		m.addMsg(chatMsg{role: "system", text: fmt.Sprintf("Thoughts view %s.", state)})
+		return m, m.flushPrints()
 	default:
-		m.addMsg(chatMsg{role: "system", text: fmt.Sprintf("Unknown command: %s. Available: /new, /model, /upload, /history", cmd)})
+		m.addMsg(chatMsg{role: "system", text: fmt.Sprintf("Unknown command: %s. Available: /new, /model, /upload, /history, /thoughts", cmd)})
 		return m, m.flushPrints()
 	}
 }
@@ -515,7 +537,7 @@ func (m *ChatModel) renderMessage(msg chatMsg) string {
 		b.WriteString(msg.text)
 	case "model":
 		if msg.thoughts != "" {
-			b.WriteString(mutedStyle.Render("Thinking: " + msg.thoughts))
+			b.WriteString(m.renderThoughts(msg.thoughts))
 			b.WriteString("\n")
 		}
 		b.WriteString(modelMsgStyle.Render("Gemini:"))
@@ -827,4 +849,53 @@ func (m ChatModel) viewHistoryDetail() string {
 
 	visible := lines[m.historyScroll:end]
 	return strings.Join(visible, "\n")
+}
+
+func (m *ChatModel) renderThoughts(thoughts string) string {
+	normalized := normalizeThoughts(thoughts)
+	if normalized == "" {
+		return ""
+	}
+	if !m.showThoughts {
+		return mutedStyle.Render("Thinking: [collapsed, run /thoughts on to expand]")
+	}
+	return mutedStyle.Render("Thinking:\n" + normalized)
+}
+
+func normalizeThoughts(thoughts string) string {
+	if thoughts == "" {
+		return ""
+	}
+
+	thoughts = strings.ReplaceAll(thoughts, "\r\n", "\n")
+	lines := strings.Split(thoughts, "\n")
+	out := make([]string, 0, len(lines))
+	blankRun := 0
+
+	for _, line := range lines {
+		line = strings.TrimRight(line, " \t")
+		if strings.TrimSpace(line) == "" {
+			blankRun++
+			if blankRun > 1 {
+				continue
+			}
+			out = append(out, "")
+			continue
+		}
+		blankRun = 0
+		out = append(out, line)
+	}
+
+	start := 0
+	for start < len(out) && out[start] == "" {
+		start++
+	}
+	end := len(out)
+	for end > start && out[end-1] == "" {
+		end--
+	}
+	if start >= end {
+		return ""
+	}
+	return strings.Join(out[start:end], "\n")
 }
